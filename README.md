@@ -31,7 +31,7 @@
 ```
 
 > Notes  
-> • EDA saves two pickles used everywhere else: **`project_a/orbitals.pkl`** and **`project_a/maneuvers.pkl`**.
+> • EDA saves two pickles used everywhere else: **`project_final/orbitals.pkl`** and **`project_final/maneuvers.pkl`**.
 
 ---
 
