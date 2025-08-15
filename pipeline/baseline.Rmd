@@ -1,0 +1,63 @@
+---
+title: "baseline"
+output: html_document
+date: "2025-08-08"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries
+library(forecast)
+library(lubridate)
+
+# Define satellite list and file paths
+satellites <- c("s3a", "fy2d", "saral")  # 修改成你要跑的卫星
+data_dir <- "E:/project_final/pipeline/data_arima"
+
+# Loop through satellites
+for (sat in satellites) {
+  
+  # Read data
+  file_path <- file.path(data_dir, paste0(sat, "_mean_motion_data.csv"))
+  df <- read.csv(file_path, stringsAsFactors = FALSE)
+  
+  # Ensure date is Date type and sort
+  df$day_time <- as.Date(df$day_time)
+  df <- df[order(df$day_time), ]
+  
+  # Convert to time series (frequency=1 as no seasonality)
+  start_year <- year(min(df$day_time))
+  start_yday <- yday(min(df$day_time))
+  y <- ts(df$mean_motion,
+          start     = c(start_year, start_yday),
+          frequency = 1)
+  
+  # Fit baseline ARIMA(1,0,1)
+  fit_baseline <- Arima(y,
+                        order            = c(1,1,1))
+  
+  # Extract fitted values
+  fitted_vals <- fitted(fit_baseline)
+  
+  # Align with dates
+  df_fitted <- data.frame(
+    date   = df$day_time,
+    actual = df$mean_motion,
+    fitted = as.numeric(fitted_vals),
+    residual = abs(df$mean_motion - as.numeric(fitted_vals))
+  )
+  
+  # Save results
+  save_path = "E:/project_final/result"
+  out_path <- file.path(save_path, paste0(sat, "_baseline_residuals.csv"))
+  write.csv(df_fitted, out_path, row.names = FALSE, fileEncoding = "UTF-8")
+  
+  # Optional: print model summary
+  cat("\n===== Baseline ARIMA(1,1,1) for", toupper(sat), "=====\n")
+  print(summary(fit_baseline))
+}
+
+```
+

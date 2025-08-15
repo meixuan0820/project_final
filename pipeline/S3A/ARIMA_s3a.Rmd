@@ -1,0 +1,118 @@
+---
+title: "s3a arima model"
+output: html_document
+date: "2025-04-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# lib forecast
+library(forecast)
+library(lubridate)
+
+# load data from python tamed
+df <- read.csv("../data_arima/s3a_mean_motion_data.csv", stringsAsFactors = FALSE) # already done interploate
+df$day_time <- as.Date(df$day_time)
+df <- df[order(df$day_time), ]
+
+# have to change in ts data because time series
+# frequency=1 as no seasonality
+start_year <- year(min(df$day_time))
+start_yday <- yday(min(df$day_time))
+y <- ts(df$mean_motion,
+        start     = c(start_year, start_yday),
+        frequency = 1)
+```
+
+```{r}
+# grid search
+best_aic    <- Inf
+best_pdq    <- c(0,0,0)
+best_fit    <- NULL
+convergence <- data.frame(p=integer(), q=integer(), AIC=double(), Converged=logical())
+
+for (p in 0:5) {
+  for (d in 0:2) {   # <-- check diff as well
+    for (q in 0:5) {
+      fit_try <- try(
+        Arima(y,
+              order            = c(p,d,q),
+              include.constant = TRUE,
+              method           = "ML",
+              optim.control    = list(maxit=1000)
+        ),
+        silent = TRUE
+      )
+      if (!inherits(fit_try, "try-error") && fit_try$code==0) {
+        this_aic <- AIC(fit_try)
+        convergence <- rbind(convergence,
+                             data.frame(p=p, d=d, q=q,
+                                        AIC=this_aic,
+                                        Converged=TRUE))
+        cat(sprintf(" ARIMA(%d,%d,%d)  AIC=%.3f  | Converged\n", p, d, q, this_aic))
+        if (this_aic < best_aic) {
+          best_aic <- this_aic
+          best_pdq <- c(p, d, q)
+          best_fit <- fit_try
+        }
+      } else {
+        convergence <- rbind(convergence,
+                             data.frame(p=p, d=d, q=q,
+                                        AIC=NA,
+                                        Converged=FALSE))
+        cat(sprintf(" ARIMA(%d,%d,%d)  ** FAILED TO CONVERGE **\n", p, d, q))
+      }
+    }
+  }
+}
+cat(sprintf("\n>> best models：ARIMA(%d,%d,%d) — AIC=%.3f\n\n",
+            best_pdq[1], best_pdq[2], best_pdq[3], best_aic))
+
+# print coverge：
+print(convergence)
+```
+
+```{r}
+# check fitted for selected model
+cat("=== Residual Diagnostics ===\n")
+checkresiduals(best_fit)  # Ljung‐Box + ACF +  normality QQ
+```
+
+```{r}
+# fit model with searched p d q
+fit_final <- Arima(y,
+                   order            = c(5,0,5),
+                   include.constant = TRUE,
+                   method           = "ML",
+                   optim.control    = list(maxit=1000))
+
+summary(fit_final)
+```
+
+```{r}
+# extract all data fitted results
+fitted_vals <- fitted(fit_final)  # ts 
+
+# aligned with dates
+df_fitted <- data.frame(
+  date   = df$day_time,
+  actual = df$mean_motion,
+  fitted = as.numeric(fitted_vals)
+)
+
+head(df_fitted)
+```
+
+```{r}
+# save results
+write.csv(
+  df_fitted,
+  file        = "../data_arima/s3a_arima_predictions_with_dates.csv",
+  row.names   = FALSE,
+  fileEncoding = "UTF-8"
+)
+```
+
