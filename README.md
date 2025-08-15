@@ -1,6 +1,6 @@
 # Detecting Satellite Manoeuvres from TLE via Forecasting Residuals
 
-One-liner: **Detect satellite manoeuvres using time-series forecasting and residual-based threshold search on TLE orbital data.**
+**Detect satellite manoeuvres using time-series forecasting and residual-based threshold search on TLE orbital data.**
 
 ---
 
